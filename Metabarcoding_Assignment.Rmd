@@ -1,0 +1,95 @@
+---
+title: "Metabarcoding Assignment"
+author: "mstewart2000"
+date: "15/03/2022"
+output: html_document
+---
+GitHub Link: https://github.com/mstewart2000/Metabarcoding-Assignment.git
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Initial Setup
+
+#Setting up packages
+
+These are the packages I will need for this assignment
+```{r echo = FALSE}
+library(ggplot2)
+library(dplyr)
+library(vegan)
+library(ape)
+library(ggtree)
+```
+
+Loading in Data
+```{r}
+Samples = read.csv("./Data/FloristicSurvey.csv")
+```
+
+# Cleaning up data
+I will remove much of the data to get what matters, the number of each species per quadrate, along with making each sample have the name of the quadrate it was taken in
+```{r}
+Samples = Samples %>%
+  rename(Quadrate = ï..Quadrate)
+Samples_Sub = Samples %>%
+  select(11:44)
+row.names(Samples_Sub) = Samples$Quadrate
+head(Samples_Sub)
+```
+
+I will save this new data frame to upload to my assignment later
+```{r}
+write.csv(Samples_Sub, file = "SampleSubset.csv")
+```
+
+## Analysis
+
+# Bray-Curtis
+I will now make a bray-curtis distance matrix to see what effect garlic mustard has on the plant community
+```{r}
+Sample_dist = vegdist(Samples_Sub, method = "bray", binary = F)
+Samples_tree = nj(Sample_dist)
+```
+
+Now I will make the tree
+```{r}
+ggtree(Samples_tree, layout = "rectangular") %<+% Samples +
+ geom_tree(aes(colour = Location)) +
+  geom_tiplab() +
+  scale_colour_discrete(name = "Garlic Mustard", labels = c("Present", "Not Present"))
+```
+Just based on this graph, it is not let possible to tell if there is a difference yet, so I will use NMDS to make a better determination
+
+# NMDS 
+
+This will allow me to more accurately compare the effects of the presence of Garlic Mustard vs the Location of the sample
+
+To start I will generate it
+```{r}
+set.seed(13)
+NMDSdat = metaMDS(Sample_dist, k = 2, trymax = 100)
+```
+
+Now I will create data for plotting
+```{r}
+PDat = data.frame(NMDS1 = NMDSdat$points[,1],
+                  NMDS2 = NMDSdat$points[,2],
+                  Quadrate = row.names(Samples_Sub))
+```
+
+Now I will add labels
+```{r}
+PDat = merge(PDat, Samples, by = "Quadrate", all.x = T, all.y = T)
+```
+
+Now I will plot the populations as well as including the locations
+```{r}
+ggplot(PDat) +
+  geom_point(aes(x = NMDS1, y = NMDS2, colour = factor(Population), shape = Location)) +
+  scale_colour_discrete(name = "Population") + 
+  theme_bw()
+```
+
+As this plot shows, there is little correlation between the location of the samples and a much greater correlation between the population and the sample.
